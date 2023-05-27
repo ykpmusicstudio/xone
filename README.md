@@ -64,7 +64,7 @@ Any issues regarding the packaging should be reported to the respective maintain
 2. Clone the repository:
 
 ```
-git clone https://github.com/medusalix/xone
+git clone https://github.com/dlundqvist/xone
 ```
 
 3. Install `xone`:
