@@ -104,7 +104,7 @@ To fix that, there is a fork of `xpad` driver, called [`xpad-noone`](https://git
 
 An installation script for the Steam Deck is available [here](https://gist.github.com/SavageCore/263a3413532bc181c9bb215c8fe6c30d). It handles all the prerequisites and other quirks, along with installing `xone-noone`.
 
-You can run it by executing the following command: `wget -O /tmp/bootstrap.sh https://t.ly/kEf0 && sh /tmp/bootstrap.sh`
+You can run it by executing the following command: `wget -O /tmp/bootstrap.sh https://gist.githubusercontent.com/SavageCore/263a3413532bc181c9bb215c8fe6c30d/raw/8cfbc292c4b55612a2ebea3227911a3c3a6ae214/bootstrap.sh && sh /tmp/bootstrap.sh`
 
 ## Wireless pairing
 
