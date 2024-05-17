@@ -3,6 +3,7 @@
  * Copyright (C) 2021 Severin von Wnuck-Lipinski <severinvonw@outlook.de>
  */
 
+#include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/uuid.h>
 #include <linux/timer.h>
@@ -306,17 +307,64 @@ static int gip_gamepad_probe(struct gip_client *client)
 	if (err)
 		return err;
 
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
 	err = gip_init_battery(&gamepad->battery, client, GIP_GP_NAME);
 	if (err)
 		return err;
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
 
 	err = gip_init_led(&gamepad->led, client);
 	if (err)
 		return err;
 
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
 	err = gip_auth_start_handshake(&gamepad->auth, client);
 	if (err)
 		return err;
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
+
+  udelay(500);
+  udelay(500);
+  udelay(500);
+  udelay(500);
 
 	err = gip_init_input(&gamepad->input, client, GIP_GP_NAME);
 	if (err)
