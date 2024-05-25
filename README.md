@@ -10,6 +10,8 @@
 
 `xone` is a Linux kernel driver for Xbox One and Xbox Series X|S accessories. It serves as a modern replacement for `xpad`, aiming to be compatible with Microsoft's *Game Input Protocol* (GIP).
 
+**NOTE**: This is a fork, please support the upstream project.
+
 ## Compatibility
 
 - [x] Wired devices (via USB)
