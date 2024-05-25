@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * Copyright (C) 2021 Severin von Wnuck <severinvonw@outlook.de>
+ * Copyright (C) 2021 Severin von Wnuck-Lipinski <severinvonw@outlook.de>
  */
 
 #include <linux/module.h>
@@ -25,52 +25,11 @@ static struct device_type gip_adapter_type = {
 	.release = gip_adapter_release,
 };
 
-static void gip_add_client(struct gip_client *client)
-{
-	int err;
-
-	err = device_add(&client->dev);
-	if (err) {
-		dev_err(&client->dev, "%s: add device failed: %d\n",
-			__func__, err);
-		return;
-	}
-
-	dev_dbg(&client->dev, "%s: added\n", __func__);
-}
-
-static void gip_remove_client(struct gip_client *client)
-{
-	dev_dbg(&client->dev, "%s: removed\n", __func__);
-
-	if (device_is_registered(&client->dev))
-		device_del(&client->dev);
-
-	put_device(&client->dev);
-}
-
-static void gip_client_state_changed(struct work_struct *work)
-{
-	struct gip_client *client = container_of(work, typeof(*client),
-						 state_work);
-
-	switch (atomic_read(&client->state)) {
-	case GIP_CL_IDENTIFIED:
-		gip_add_client(client);
-		break;
-	case GIP_CL_DISCONNECTED:
-		gip_remove_client(client);
-		break;
-	default:
-		dev_warn(&client->dev, "%s: invalid state\n", __func__);
-		break;
-	}
-}
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
 static int gip_client_uevent(struct device *dev, struct kobj_uevent_env *env)
 #else
-static int gip_client_uevent(const struct device *dev, struct kobj_uevent_env *env)
+static int gip_client_uevent(const struct device *dev,
+			     struct kobj_uevent_env *env)
 #endif
 {
 	struct gip_client *client = to_gip_client(dev);
@@ -87,7 +46,8 @@ static void gip_client_release(struct device *dev)
 	struct gip_client *client = to_gip_client(dev);
 
 	gip_free_client_info(client);
-	kfree(client->chunk_buf);
+	kfree(client->chunk_buf_out);
+	kfree(client->chunk_buf_in);
 	kfree(client);
 }
 
@@ -119,18 +79,18 @@ static int gip_bus_probe(struct device *dev)
 {
 	struct gip_client *client = to_gip_client(dev);
 	struct gip_driver *drv = to_gip_driver(dev->driver);
-	int err;
-	unsigned long flags;
+	int err = 0;
 
-	if (client->drv)
-		return 0;
+	if (down_interruptible(&client->drv_lock))
+		return -EINTR;
 
-	err = drv->probe(client);
-	if (!err) {
-		spin_lock_irqsave(&client->lock, flags);
-		client->drv = drv;
-		spin_unlock_irqrestore(&client->lock, flags);
+	if (!client->drv) {
+		err = drv->probe(client);
+		if (!err)
+			client->drv = drv;
 	}
+
+	up(&client->drv_lock);
 
 	return err;
 }
@@ -138,18 +98,18 @@ static int gip_bus_probe(struct device *dev)
 static void gip_bus_remove(struct device *dev)
 {
 	struct gip_client *client = to_gip_client(dev);
-	struct gip_driver *drv = client->drv;
-	unsigned long flags;
+	struct gip_driver *drv;
 
-	if (!drv)
-		return;
+	down(&client->drv_lock);
 
-	spin_lock_irqsave(&client->lock, flags);
-	client->drv = NULL;
-	spin_unlock_irqrestore(&client->lock, flags);
+	drv = client->drv;
+	if (drv) {
+		client->drv = NULL;
+		if (drv->remove)
+			drv->remove(client);
+	}
 
-	if (drv->remove)
-		drv->remove(client);
+	up(&client->drv_lock);
 }
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5, 13, 0)
@@ -194,8 +154,8 @@ struct gip_adapter *gip_create_adapter(struct device *parent,
 		goto err_put_device;
 	}
 
-	adap->state_queue = alloc_ordered_workqueue("gip%d", 0, adap->id);
-	if (!adap->state_queue) {
+	adap->clients_wq = alloc_ordered_workqueue("gip%d", 0, adap->id);
+	if (!adap->clients_wq) {
 		err = -ENOMEM;
 		goto err_remove_ida;
 	}
@@ -206,7 +166,6 @@ struct gip_adapter *gip_create_adapter(struct device *parent,
 	adap->ops = ops;
 	adap->audio_packet_count = audio_pkts;
 	dev_set_name(&adap->dev, "gip%d", adap->id);
-	spin_lock_init(&adap->clients_lock);
 	spin_lock_init(&adap->send_lock);
 
 	err = device_register(&adap->dev);
@@ -218,7 +177,7 @@ struct gip_adapter *gip_create_adapter(struct device *parent,
 	return adap;
 
 err_destroy_queue:
-	destroy_workqueue(adap->state_queue);
+	destroy_workqueue(adap->clients_wq);
 err_remove_ida:
 	ida_simple_remove(&gip_adapter_ida, adap->id);
 err_put_device:
@@ -246,102 +205,98 @@ void gip_destroy_adapter(struct gip_adapter *adap)
 	int i;
 
 	/* ensure all state changes have been processed */
-	flush_workqueue(adap->state_queue);
+	flush_workqueue(adap->clients_wq);
 
 	for (i = GIP_MAX_CLIENTS - 1; i >= 0; i--) {
 		client = adap->clients[i];
-		if (!client)
+		if (!client || !device_is_registered(&client->dev))
 			continue;
 
-		gip_remove_client(client);
-		adap->clients[i] = NULL;
+		device_unregister(&client->dev);
 	}
 
 	ida_simple_remove(&gip_adapter_ida, adap->id);
-	destroy_workqueue(adap->state_queue);
+	destroy_workqueue(adap->clients_wq);
 
 	dev_dbg(&adap->dev, "%s: unregistered\n", __func__);
 	device_unregister(&adap->dev);
 }
 EXPORT_SYMBOL_GPL(gip_destroy_adapter);
 
-static struct gip_client *gip_init_client(struct gip_adapter *adap, u8 id)
+static void gip_register_client(struct work_struct *work)
+{
+	struct gip_client *client = container_of(work, typeof(*client),
+						 work_register);
+	int err;
+
+	client->dev.parent = &client->adapter->dev;
+	client->dev.type = &gip_client_type;
+	client->dev.bus = &gip_bus_type;
+	sema_init(&client->drv_lock, 1);
+	dev_set_name(&client->dev, "gip%d.%u", client->adapter->id, client->id);
+
+	err = device_register(&client->dev);
+	if (err)
+		dev_err(&client->dev, "%s: register failed: %d\n",
+			__func__, err);
+	else
+		dev_dbg(&client->dev, "%s: registered\n", __func__);
+}
+
+static void gip_unregister_client(struct work_struct *work)
+{
+	struct gip_client *client = container_of(work, typeof(*client),
+						 work_unregister);
+
+	if (!device_is_registered(&client->dev))
+		return;
+
+	dev_dbg(&client->dev, "%s: unregistered\n", __func__);
+	device_unregister(&client->dev);
+}
+
+struct gip_client *gip_get_client(struct gip_adapter *adap, u8 id)
 {
 	struct gip_client *client;
+
+	client = adap->clients[id];
+	if (client)
+		return client;
 
 	client = kzalloc(sizeof(*client), GFP_ATOMIC);
 	if (!client)
 		return ERR_PTR(-ENOMEM);
 
-	client->dev.parent = &adap->dev;
-	client->dev.type = &gip_client_type;
-	client->dev.bus = &gip_bus_type;
 	client->id = id;
 	client->adapter = adap;
-	dev_set_name(&client->dev, "gip%d.%u", adap->id, client->id);
-	atomic_set(&client->state, GIP_CL_CONNECTED);
-	spin_lock_init(&client->lock);
-	INIT_WORK(&client->state_work, gip_client_state_changed);
+	sema_init(&client->drv_lock, 1);
+	INIT_WORK(&client->work_register, gip_register_client);
+	INIT_WORK(&client->work_unregister, gip_unregister_client);
 
-	device_initialize(&client->dev);
-	dev_dbg(&client->dev, "%s: initialized\n", __func__);
+	adap->clients[id] = client;
 
-	return client;
-}
-
-struct gip_client *gip_get_or_init_client(struct gip_adapter *adap, u8 id)
-{
-	struct gip_client *client;
-	unsigned long flags;
-
-	spin_lock_irqsave(&adap->clients_lock, flags);
-
-	client = adap->clients[id];
-	if (!client) {
-		client = gip_init_client(adap, id);
-		if (IS_ERR(client))
-			goto err_unlock;
-
-		adap->clients[id] = client;
-	}
-
-	get_device(&client->dev);
-
-err_unlock:
-	spin_unlock_irqrestore(&adap->clients_lock, flags);
+	dev_dbg(&client->adapter->dev, "%s: initialized client %u\n",
+		__func__, id);
 
 	return client;
 }
 
-void gip_put_client(struct gip_client *client)
+void gip_add_client(struct gip_client *client)
 {
-	put_device(&client->dev);
+	queue_work(client->adapter->clients_wq, &client->work_register);
 }
 
-void gip_register_client(struct gip_client *client)
+void gip_remove_client(struct gip_client *client)
 {
-	atomic_set(&client->state, GIP_CL_IDENTIFIED);
-	queue_work(client->adapter->state_queue, &client->state_work);
-}
-
-void gip_unregister_client(struct gip_client *client)
-{
-	struct gip_adapter *adap = client->adapter;
-	unsigned long flags;
-
-	spin_lock_irqsave(&adap->clients_lock, flags);
-	adap->clients[client->id] = NULL;
-	spin_unlock_irqrestore(&adap->clients_lock, flags);
-
-	atomic_set(&client->state, GIP_CL_DISCONNECTED);
-	queue_work(adap->state_queue, &client->state_work);
+	client->adapter->clients[client->id] = NULL;
+	queue_work(client->adapter->clients_wq, &client->work_unregister);
 }
 
 void gip_free_client_info(struct gip_client *client)
 {
 	int i;
 
-	kfree(client->external_commands);
+	kfree(client->client_commands);
 	kfree(client->firmware_versions);
 	kfree(client->audio_formats);
 	kfree(client->capabilities_out);
@@ -355,7 +310,7 @@ void gip_free_client_info(struct gip_client *client)
 	kfree(client->interfaces);
 	kfree(client->hid_descriptor);
 
-	client->external_commands = NULL;
+	client->client_commands = NULL;
 	client->audio_formats = NULL;
 	client->capabilities_out = NULL;
 	client->capabilities_in = NULL;
@@ -395,6 +350,7 @@ static void __exit gip_bus_exit(void)
 module_init(gip_bus_init);
 module_exit(gip_bus_exit);
 
-MODULE_AUTHOR("Severin von Wnuck <severinvonw@outlook.de>");
+MODULE_AUTHOR("Severin von Wnuck-Lipinski <severinvonw@outlook.de>");
 MODULE_DESCRIPTION("xone GIP driver");
+MODULE_VERSION("#VERSION#");
 MODULE_LICENSE("GPL");
