@@ -20,8 +20,8 @@
 
 #define XONE_WIRED_VENDOR(vendor) \
 	.match_flags = USB_DEVICE_ID_MATCH_VENDOR | \
-		       USB_DEVICE_ID_MATCH_INT_INFO | \
-		       USB_DEVICE_ID_MATCH_INT_NUMBER, \
+					 USB_DEVICE_ID_MATCH_INT_INFO | \
+					 USB_DEVICE_ID_MATCH_INT_NUMBER, \
 	.idVendor = vendor, \
 	.bInterfaceClass = USB_CLASS_VENDOR_SPEC, \
 	.bInterfaceSubClass = 0x47, \
@@ -72,9 +72,9 @@ static void xone_wired_complete_data_in(struct urb *urb)
 	if (err) {
 		dev_err(dev, "%s: process failed: %d\n", __func__, err);
 		print_hex_dump_debug("xone-wired packet: ",
-				     DUMP_PREFIX_NONE, 16, 1,
-				     urb->transfer_buffer, urb->actual_length,
-				     false);
+						 DUMP_PREFIX_NONE, 16, 1,
+						 urb->transfer_buffer, urb->actual_length,
+						 false);
 	}
 
 resubmit:
@@ -194,14 +194,14 @@ static void xone_wired_free_urbs(struct xone_wired_port *port)
 
 	if (urb) {
 		usb_free_coherent(urb->dev, urb->transfer_buffer_length,
-				  urb->transfer_buffer, urb->transfer_dma);
+					urb->transfer_buffer, urb->transfer_dma);
 		usb_free_urb(urb);
 		port->urb_in = NULL;
 	}
 
 	while ((urb = usb_get_from_anchor(&port->urbs_out_idle))) {
 		usb_free_coherent(urb->dev, port->buffer_length_out,
-				  urb->transfer_buffer, urb->transfer_dma);
+					urb->transfer_buffer, urb->transfer_dma);
 		usb_free_urb(urb);
 	}
 }
@@ -232,7 +232,7 @@ static int xone_wired_get_buffer(struct gip_adapter *adap,
 }
 
 static int xone_wired_submit_buffer(struct gip_adapter *adap,
-				    struct gip_adapter_buffer *buf)
+						struct gip_adapter_buffer *buf)
 {
 	struct xone_wired *wired = dev_get_drvdata(&adap->dev);
 	struct xone_wired_port *port;
@@ -344,7 +344,7 @@ static int xone_wired_init_audio_out(struct gip_adapter *adap, int pkt_len)
 
 		urb->dev = wired->udev;
 		urb->pipe = usb_sndisocpipe(wired->udev,
-					    port->ep_out->bEndpointAddress);
+							port->ep_out->bEndpointAddress);
 		urb->transfer_flags = URB_ISO_ASAP | URB_NO_TRANSFER_DMA_MAP;
 		urb->transfer_buffer = buf;
 		urb->transfer_buffer_length = port->buffer_length_out;
@@ -394,8 +394,8 @@ static struct gip_adapter_ops xone_wired_adapter_ops = {
 static struct usb_driver xone_wired_driver;
 
 static int xone_wired_find_isoc_endpoints(struct usb_host_interface *alt,
-					  struct usb_endpoint_descriptor **in,
-					  struct usb_endpoint_descriptor **out)
+						struct usb_endpoint_descriptor **in,
+						struct usb_endpoint_descriptor **out)
 {
 	struct usb_endpoint_descriptor *ep;
 	int i;
@@ -415,7 +415,7 @@ static int xone_wired_find_isoc_endpoints(struct usb_host_interface *alt,
 }
 
 static int xone_wired_init_data_port(struct xone_wired *wired,
-				     struct usb_interface *intf)
+						 struct usb_interface *intf)
 {
 	struct xone_wired_port *port = &wired->data_port;
 	int err;
@@ -473,7 +473,7 @@ static int xone_wired_init_audio_port(struct xone_wired *wired)
 }
 
 static int xone_wired_probe(struct usb_interface *intf,
-			    const struct usb_device_id *id)
+					const struct usb_device_id *id)
 {
 	struct xone_wired *wired;
 	int err;
@@ -496,7 +496,7 @@ static int xone_wired_probe(struct usb_interface *intf,
 		return err;
 
 	wired->adapter = gip_create_adapter(&intf->dev, &xone_wired_adapter_ops,
-					    XONE_WIRED_NUM_AUDIO_PKTS);
+							XONE_WIRED_NUM_AUDIO_PKTS);
 	if (IS_ERR(wired->adapter))
 		return PTR_ERR(wired->adapter);
 
