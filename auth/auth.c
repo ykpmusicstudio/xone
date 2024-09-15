@@ -518,6 +518,8 @@ static void gip_auth_complete_handshake(struct work_struct *work)
 	if (err) {
 		dev_err(&auth->client->dev, "%s: compute PRF failed: %d\n",
 			__func__, err);
+    if (auth->client->drv->ops.authenticated)
+      auth->client->drv->ops.authenticated(auth->client, false);
 		return;
 	}
 
@@ -528,13 +530,20 @@ static void gip_auth_complete_handshake(struct work_struct *work)
 	if (err) {
 		dev_err(&auth->client->dev, "%s: send complete failed: %d\n",
 			__func__, err);
+    if (auth->client->drv->ops.authenticated)
+      auth->client->drv->ops.authenticated(auth->client, false);
 		return;
 	}
 
 	err = gip_set_encryption_key(auth->client, key, sizeof(key));
-	if (err)
+	if (err) {
 		dev_err(&auth->client->dev,
 			"%s: set encryption key failed: %d\n", __func__, err);
+    if (auth->client->drv->ops.authenticated)
+      auth->client->drv->ops.authenticated(auth->client, false);
+  }
+  if (auth->client->drv->ops.authenticated)
+    auth->client->drv->ops.authenticated(auth->client, true);
 }
 
 static int gip_auth_dispatch_pkt(struct gip_auth *auth,
