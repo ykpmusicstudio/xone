@@ -12,7 +12,7 @@
 #define XONE_WIRED_INTF_DATA 0
 #define XONE_WIRED_INTF_AUDIO 1
 
-#define XONE_WIRED_NUM_DATA_URBS 8
+#define XONE_WIRED_NUM_DATA_URBS 12
 #define XONE_WIRED_NUM_AUDIO_URBS 12
 #define XONE_WIRED_NUM_AUDIO_PKTS 8
 
@@ -563,8 +563,6 @@ static const struct usb_device_id xone_wired_id_table[] = {
 	{ XONE_WIRED_VENDOR(0x294b) }, /* Snakebyte */
 	{ XONE_WIRED_VENDOR(0x2c16) }, /* Priferential */
 	{ XONE_WIRED_VENDOR(0x0b05) }, /* ASUS */
-	{ XONE_WIRED_VENDOR(0x413d) }, /* BIGBIG WON */
-	{ XONE_WIRED_VENDOR(0x046d) }, /* Logitech Astro */
 	{ },
 };
 
