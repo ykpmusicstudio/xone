@@ -69,6 +69,10 @@ struct xone_mt76_msg_switch_channel {
 	u8 unknown;
 } __packed;
 
+static char override_mac[ETH_ALEN] = { 0 };
+module_param_array(override_mac, byte, NULL, 0444);
+MODULE_PARM_DESC(override_mac, "Override MAC address (6 bytes), helps deconflict counterfeit adapters");
+
 static u32 xone_mt76_read_register(struct xone_mt76 *mt, u32 addr)
 {
 	u8 req = MT_VEND_MULTI_READ;
@@ -713,7 +717,12 @@ static int xone_mt76_init_address(struct xone_mt76 *mt)
 	if (err)
 		return err;
 
-	dev_dbg(mt->dev, "%s: address=%pM\n", __func__, mt->address);
+	dev_dbg(mt->dev, "%s: fuse_address=%pM\n", __func__, mt->address);
+	/* Override MAC address if present */
+	if (!is_zero_ether_addr(override_mac)) {
+		memcpy(mt->address, override_mac, ETH_ALEN);
+		dev_dbg(mt->dev, "%s: overriding MAC address to %pM\n", __func__, mt->address);
+	}
 
 	/* some addresses start with 6c:5d:3a */
 	/* clients only connect to 62:45:bx:xx:xx:xx */
@@ -721,6 +730,7 @@ static int xone_mt76_init_address(struct xone_mt76 *mt)
 		mt->address[0] = 0x62;
 		mt->address[1] = 0x45;
 		mt->address[2] = 0xbd;
+		dev_dbg(mt->dev, "%s: address=%pM\n", __func__, mt->address);
 	}
 
 	err = xone_mt76_write_burst(mt, MT_MAC_ADDR_DW0,
