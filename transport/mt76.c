@@ -508,9 +508,8 @@ static int xone_mt76_reset_firmware(struct xone_mt76 *mt)
 	return 0;
 }
 
-int xone_mt76_load_firmware(struct xone_mt76 *mt, const char *name)
+int xone_mt76_load_firmware(struct xone_mt76 *mt, const struct firmware *fw)
 {
-	const struct firmware *fw;
 	int err;
 
 	if (xone_mt76_read_register(mt, MT_FCE_DMA_ADDR | MT_VEND_TYPE_CFG)) {
@@ -518,29 +517,18 @@ int xone_mt76_load_firmware(struct xone_mt76 *mt, const char *name)
 		return xone_mt76_reset_firmware(mt);
 	}
 
-	err = request_firmware(&fw, name, mt->dev);
-	if (err) {
-		if (err == -ENOENT)
-			dev_err(mt->dev, "%s: firmware not found\n", __func__);
-
-		return err;
-	}
-
 	err = xone_mt76_send_firmware(mt, fw);
 	if (err)
-		goto err_free_firmware;
+		return err;
 
 	xone_mt76_write_register(mt, MT_FCE_DMA_ADDR | MT_VEND_TYPE_CFG, 0);
 
 	err = xone_mt76_load_ivb(mt);
 	if (err)
-		goto err_free_firmware;
+		return err;
 
 	if (!xone_mt76_poll(mt, MT_FCE_DMA_ADDR | MT_VEND_TYPE_CFG, 0x01, 0x01))
 		err = -ETIMEDOUT;
-
-err_free_firmware:
-	release_firmware(fw);
 
 	return err;
 }
