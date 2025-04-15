@@ -708,6 +708,25 @@ static int xone_mt76_set_idle_time(struct xone_mt76 *mt)
 					 &time, sizeof(time));
 }
 
+/*
+ * There are a number of knockoff adapters out there that share the same MAC address(es).
+ * This will create problems if two of them are used within range of each other.
+ * So far, the following MACs are known to be associated with knockoff adapters:
+ */
+static const u8 xone_counterfeit_macs[][ETH_ALEN] = {
+	{0x62, 0x45, 0xb4, 0xe7, 0xa4, 0xef},
+};
+
+static int xone_mt76_mac_looks_counterfeit(const u8* addr)
+{
+	for (int i = 0; i < ARRAY_SIZE(xone_counterfeit_macs); i++) {
+		if (ether_addr_equal(addr, xone_counterfeit_macs[i]))
+			return true;
+	}
+
+	return false;
+}
+
 static int xone_mt76_init_address(struct xone_mt76 *mt)
 {
 	int err;
@@ -718,6 +737,12 @@ static int xone_mt76_init_address(struct xone_mt76 *mt)
 		return err;
 
 	dev_dbg(mt->dev, "%s: fuse_address=%pM\n", __func__, mt->address);
+
+	if (xone_mt76_mac_looks_counterfeit(mt->address) && is_zero_ether_addr(override_mac))
+		dev_warn(mt->dev, "%s: MAC address %pM looks suspicious. Counterfeit "
+			 "adapter? That may be fine, but consider passing override_mac= to "
+			 "deconflict with others nearby\n", __func__, mt->address);
+
 	/* Override MAC address if present */
 	if (!is_zero_ether_addr(override_mac)) {
 		memcpy(mt->address, override_mac, ETH_ALEN);
