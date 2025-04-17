@@ -69,6 +69,10 @@ struct xone_mt76_msg_switch_channel {
 	u8 unknown;
 } __packed;
 
+static char override_mac[ETH_ALEN] = { 0 };
+module_param_array(override_mac, byte, NULL, 0444);
+MODULE_PARM_DESC(override_mac, "Override MAC address (6 bytes), helps deconflict counterfeit adapters");
+
 static u32 xone_mt76_read_register(struct xone_mt76 *mt, u32 addr)
 {
 	u8 req = MT_VEND_MULTI_READ;
@@ -704,6 +708,25 @@ static int xone_mt76_set_idle_time(struct xone_mt76 *mt)
 					 &time, sizeof(time));
 }
 
+/*
+ * There are a number of knockoff adapters out there that share the same MAC address(es).
+ * This will create problems if two of them are used within range of each other.
+ * So far, the following MACs are known to be associated with knockoff adapters:
+ */
+static const u8 xone_counterfeit_macs[][ETH_ALEN] = {
+	{0x62, 0x45, 0xb4, 0xe7, 0xa4, 0xef},
+};
+
+static int xone_mt76_mac_looks_counterfeit(const u8* addr)
+{
+	for (int i = 0; i < ARRAY_SIZE(xone_counterfeit_macs); i++) {
+		if (ether_addr_equal(addr, xone_counterfeit_macs[i]))
+			return true;
+	}
+
+	return false;
+}
+
 static int xone_mt76_init_address(struct xone_mt76 *mt)
 {
 	int err;
@@ -713,7 +736,18 @@ static int xone_mt76_init_address(struct xone_mt76 *mt)
 	if (err)
 		return err;
 
-	dev_dbg(mt->dev, "%s: address=%pM\n", __func__, mt->address);
+	dev_dbg(mt->dev, "%s: fuse_address=%pM\n", __func__, mt->address);
+
+	if (xone_mt76_mac_looks_counterfeit(mt->address) && is_zero_ether_addr(override_mac))
+		dev_warn(mt->dev, "%s: MAC address %pM looks suspicious. Counterfeit "
+			 "adapter? That may be fine, but consider passing override_mac= to "
+			 "deconflict with others nearby\n", __func__, mt->address);
+
+	/* Override MAC address if present */
+	if (!is_zero_ether_addr(override_mac)) {
+		memcpy(mt->address, override_mac, ETH_ALEN);
+		dev_dbg(mt->dev, "%s: overriding MAC address to %pM\n", __func__, mt->address);
+	}
 
 	/* some addresses start with 6c:5d:3a */
 	/* clients only connect to 62:45:bx:xx:xx:xx */
@@ -721,6 +755,7 @@ static int xone_mt76_init_address(struct xone_mt76 *mt)
 		mt->address[0] = 0x62;
 		mt->address[1] = 0x45;
 		mt->address[2] = 0xbd;
+		dev_dbg(mt->dev, "%s: address=%pM\n", __func__, mt->address);
 	}
 
 	err = xone_mt76_write_burst(mt, MT_MAC_ADDR_DW0,
