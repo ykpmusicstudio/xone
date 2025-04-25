@@ -248,22 +248,22 @@ static enum hrtimer_restart gip_headset_send_samples(struct hrtimer *timer)
 	int err;
 	unsigned long flags;
 
+	if (sub) {
+		snd_pcm_stream_lock_irqsave(sub, flags);
+
+		if (sub->runtime && snd_pcm_running(sub))
+			elapsed = gip_headset_copy_playback(&headset->playback,
+							    headset->buffer,
+							    cfg->buffer_size);
+
+		snd_pcm_stream_unlock_irqrestore(sub, flags);
+
+		if (elapsed)
+			snd_pcm_period_elapsed(sub);
+	}
+
 	if (headset->got_authenticated)
 	{
-		if (sub) {
-			snd_pcm_stream_lock_irqsave(sub, flags);
-
-			if (sub->runtime && snd_pcm_running(sub))
-				elapsed = gip_headset_copy_playback(&headset->playback,
-								    headset->buffer,
-								    cfg->buffer_size);
-
-			snd_pcm_stream_unlock_irqrestore(sub, flags);
-
-			if (elapsed)
-				snd_pcm_period_elapsed(sub);
-		  }
-
 		/* retry if driver runs out of buffers */
 		err = gip_send_audio_samples(headset->client, headset->buffer);
 		if (err && err != -ENOSPC)
