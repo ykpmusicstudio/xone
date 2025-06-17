@@ -318,6 +318,11 @@ static void gip_headset_config(struct work_struct *work)
 	dev_dbg(&client->dev, "%s: format=0x%02x/0x%02x\n", __func__,
 		fmts->data[0], fmts->data[1]);
 
+  /* force headset in idle mode */
+	err = gip_set_power_mode(client, GIP_PWR_SLEEP);
+	if (err)
+		dev_err(&client->dev, "%s: set headset power mode to IDLE failed: %d\n",
+			__func__, err);
 	/* suggest initial audio format */
 	err = gip_suggest_audio_format(client, fmts->data[0], fmts->data[1],
 				       headset->chat_headset);
