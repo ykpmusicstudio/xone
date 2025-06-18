@@ -887,15 +887,11 @@ static int xone_dongle_init(struct xone_dongle *dongle,
 	dev_dbg(dongle->mt.dev, "%s: trying to load firmware %s\n",
 			__func__, fwname);
 	err = request_firmware(&fw, fwname, mt->dev);
-	if (err) {
-		if (err == -ENOENT) {
-			snprintf(fwname, 25, "xow_dongle.bin",
-				 id->idVendor, id->idProduct);
-			dev_dbg(dongle->mt.dev, "%s: trying to load firmware %s\n",
-				__func__, fwname);
-			err = request_firmware(&fw, fwname, mt->dev);
-
-		}
+	if (err == -ENOENT) {
+		snprintf(fwname, 15, "xow_dongle.bin");
+		dev_dbg(dongle->mt.dev, "%s: trying to load firmware %s\n",
+			__func__, fwname);
+		err = request_firmware(&fw, fwname, mt->dev);
 	}
 
 	if (err) {
