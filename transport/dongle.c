@@ -882,12 +882,23 @@ static int xone_dongle_init(struct xone_dongle *dongle,
 	if (err)
 		return err;
 
-	snprintf(fwname, 25, "xow_dongle_%04x_%04x.bin",
-		 id->idVendor, id->idProduct);
-	dev_dbg(dongle->mt.dev, "%s: trying to load firmware %s\n",
+	/*
+	 * Skip loading "exact" firmware if the official
+	 * Microsoft dongle has been detected
+	 */
+	bool official_dongle =
+		(id->idVendor == 0x045e && id->idProduct == 0x02fe);
+
+	err = 0;
+	if (!official_dongle) {
+		snprintf(fwname, 25, "xow_dongle_%04x_%04x.bin",
+			 id->idVendor, id->idProduct);
+		dev_dbg(dongle->mt.dev, "%s: trying to load firmware %s\n",
 			__func__, fwname);
-	err = request_firmware(&fw, fwname, mt->dev);
-	if (err == -ENOENT) {
+		err = request_firmware(&fw, fwname, mt->dev);
+	}
+
+	if (err == -ENOENT || official_dongle) {
 		snprintf(fwname, 15, "xow_dongle.bin");
 		dev_dbg(dongle->mt.dev, "%s: trying to load firmware %s\n",
 			__func__, fwname);
