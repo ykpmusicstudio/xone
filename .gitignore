@@ -1,2 +1,9 @@
 internal/*
 .vscode/*
+*.o
+*.cmd
+*.order
+*.symvers
+*.ko
+*.mod
+*.mod.c

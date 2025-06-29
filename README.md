@@ -60,6 +60,36 @@ Always update your Xbox devices to the latest firmware version!
 Feel free to package `xone` for any Linux distribution or hardware you like.
 Any issues regarding the packaging should be reported to the respective maintainers.
 
+## Building and testing
+
+### Prerequisites
+
+- Linux 5.13+
+- Linux headers
+
+Build the driver
+```shell
+make
+# with debug
+make debug
+```
+
+Load modules from the build directory
+```shell
+sudo make load
+```
+
+Unload all xone modules
+```shell
+# called automatically during load as well
+sudo make unload
+```
+
+Clean all build files
+```shell
+make clean
+```
+
 ## Installation
 
 ### Prerequisites
