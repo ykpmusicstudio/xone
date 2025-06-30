@@ -25,8 +25,8 @@
 #define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(1000)
 
 static struct gip_vidpid GIP_HS_CHECK_AUTH_IDS[] = {
-	// TODO: Razer Kaira Pro
-	// TODO: LS35X
+	{0x1532, 0x0a25}, // Razer Kaira Pro
+	{0x2f12, 0x0023}, // LucidSound LS35X
 };
 
 static const struct snd_pcm_hardware gip_headset_pcm_hw = {
