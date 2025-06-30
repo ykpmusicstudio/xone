@@ -19,6 +19,14 @@ if [[ $1 == "unload" ]]; then
     for ((i = 0 ; i < $len ; i++)); do
         MODULES[$i]=${MODULES_TMP[(( $len - $i - 1 ))]}
     done
+
+    [[ $LOADED_MODULES =~ "xpad" ]] && rmmod -f xpad
+    [[ $LOADED_MODULES =~ "mt76x2u" ]] && rmmod -f mt76x2u
+fi
+
+# make sure ff-memless is loaded as it exports some needed symbols
+if [[ $1 != "unload" && ! "$LOADED_MODULES" =~ "ff-memless" ]]; then
+    modprobe ff-memless
 fi
 
 for module in "${MODULES[@]}"; do
