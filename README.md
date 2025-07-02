@@ -136,6 +136,28 @@ Make sure to completely uninstall `xone` before updating:
 sudo ./uninstall.sh
 ```
 
+### Steam Deck/SteamOS
+#### Automatic install
+First, let's set a password
+```bash
+# (optional, skip if you've already done this in the past)
+passwd deck
+```
+Run installation script
+```bash
+sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/dlundqvist/xone/master/install/steam-deck-install.sh)"
+```
+#### Uninstall:
+```bash
+sudo pacman -Rcns xone-dkms
+```
+Optionally, lock your deck and  remove password
+```bash
+steamos-readonly enable
+# enter current one and leave the new password blank
+passwd deck
+```
+
 ### Using Xbox 360 controllers with xone
 
 `xone` doesn't support Xbox 360 controllers at all. On top of that, `xone` needs to disable `xpad` driver to work properly, which would normally support Xbox 360 controllers. This is due to `xpad` also trying to handle Xbox One controllers, which `xone` aims to support.
