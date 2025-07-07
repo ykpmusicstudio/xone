@@ -309,8 +309,6 @@ static enum hrtimer_restart gip_headset_start_audio(struct hrtimer *timer) {
 			headset->got_initial_volume);
 		/* start work handling pcm config and audio timer */
 		schedule_work(&headset->work_register);
-		/* start auth handshake within 500ms */
-		schedule_delayed_work(&headset->work_power_on, GIP_HS_POWER_ON_DELAY);
 		return HRTIMER_NORESTART;
 	}
 
@@ -510,6 +508,8 @@ static int gip_headset_op_audio_ready(struct gip_client *client)
 		"%s: audio ready : initialize start sequence.\n", __func__);
 	headset->start_counter = 0;
 	hrtimer_start(&headset->start_audio_timer, 0, HRTIMER_MODE_REL);
+	/* start auth handshake within 500ms */
+	schedule_delayed_work(&headset->work_power_on, GIP_HS_POWER_ON_DELAY);
 
 	return 0;
 }
