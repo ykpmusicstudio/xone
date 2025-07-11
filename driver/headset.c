@@ -22,8 +22,7 @@
 #define GIP_HS_PID_CHAT 0x0111
 
 #define GIP_HS_MAX_RETRIES  5
-#define GIP_HS_CONFIG_DELAY msecs_to_jiffies(500)
-#define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(500)
+#define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(1000)
 #define GIP_HS_START_DELAY msecs_to_jiffies(500)
 
 static struct gip_vidpid GIP_HS_CHECK_AUTH_IDS[] = {
