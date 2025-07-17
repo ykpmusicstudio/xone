@@ -67,6 +67,13 @@ Any issues regarding the packaging should be reported to the respective maintain
 - Linux 5.13+
 - Linux headers
 
+### Automagically
+Build the driver with debug flags, load modules, cleanup working directory
+```shell
+sudo make test
+```
+
+### Manually
 Build the driver
 ```shell
 make
