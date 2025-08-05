@@ -27,6 +27,7 @@
 
 static struct gip_vidpid GIP_HS_CHECK_AUTH_IDS[] = {
 	{0x1532, 0x0a25}, // Razer Kaira Pro
+	{0x1532, 0x0a27}, // Razer Kaira Pro
 	{0x2f12, 0x0023}, // LucidSound LS35X
 };
 
