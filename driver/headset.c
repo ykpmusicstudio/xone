@@ -21,7 +21,7 @@
 /* product ID for the chat headset */
 #define GIP_HS_PID_CHAT 0x0111
 
-#define GIP_HS_MAX_RETRIES  6
+#define GIP_HS_MAX_RETRIES  12
 #define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(1000)
 #define GIP_HS_START_DELAY msecs_to_jiffies(500)
 
@@ -304,8 +304,9 @@ static enum hrtimer_restart gip_headset_start_audio(struct hrtimer *timer) {
 	    || headset->got_audio_packet
 	    || max_retries_reached) {
 		dev_dbg(&headset->client->dev,
-			"%s: start audio try %d/5, audio = %d, vol = %d.\n",
+			"%s: start audio try %d/%d, audio = %d, vol = %d.\n",
 			__func__, headset->start_counter,
+			GIP_HS_MAX_RETRIES,
 			headset->got_audio_packet,
 			headset->got_initial_volume);
 		/* start work handling pcm config and audio timer */
@@ -315,8 +316,8 @@ static enum hrtimer_restart gip_headset_start_audio(struct hrtimer *timer) {
 
 	// otherwise resend START and wait for another GIP_HS_START_DELAY ms
 	headset->start_counter++;
-	dev_dbg(&headset->client->dev, "%s: send device start, try %d/5.\n",
-		__func__, headset->start_counter);
+	dev_dbg(&headset->client->dev, "%s: send device start, try %d/%d.\n",
+		__func__, headset->start_counter, GIP_HS_MAX_RETRIES);
 	err = gip_set_power_mode(headset->client, GIP_PWR_ON);
 	if (err)
 		dev_err(&headset->client->dev,
