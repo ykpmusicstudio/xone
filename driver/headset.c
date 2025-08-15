@@ -21,8 +21,8 @@
 /* product ID for the chat headset */
 #define GIP_HS_PID_CHAT 0x0111
 
-#define GIP_HS_MAX_RETRIES  12
-#define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(1000)
+#define GIP_HS_MAX_RETRIES  6
+#define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(250)
 #define GIP_HS_START_DELAY msecs_to_jiffies(500)
 
 static struct gip_vidpid GIP_HS_CHECK_AUTH_IDS[] = {
@@ -510,7 +510,7 @@ static int gip_headset_op_audio_ready(struct gip_client *client)
 		"%s: audio ready : initialize start sequence.\n", __func__);
 	headset->start_counter = 0;
 	hrtimer_start(&headset->start_audio_timer, 0, HRTIMER_MODE_REL);
-	/* start auth handshake within 500ms */
+	/* start auth handshake after GIP_HS_POWER_ON_DELAY */
 	schedule_delayed_work(&headset->work_power_on, GIP_HS_POWER_ON_DELAY);
 
 	return 0;
