@@ -992,15 +992,14 @@ static void xone_dongle_fw_load(struct work_struct *work)
 	usb_enable_autosuspend(dongle->mt.udev);
 }
 
-static int xone_dongle_init(struct xone_dongle *dongle,
-			    const struct usb_device_id *id)
+static int xone_dongle_init(struct xone_dongle *dongle)
 {
 	init_usb_anchor(&dongle->urbs_out_idle);
 	init_usb_anchor(&dongle->urbs_out_busy);
 	init_usb_anchor(&dongle->urbs_in_idle);
 	init_usb_anchor(&dongle->urbs_in_busy);
 
-	INIT_WORK(&dongle->load_fw_work, xone_dongle_fw_load);
+	dongle->fw_state = XONE_DONGLE_FW_STATE_PENDING;
 	schedule_work(&dongle->load_fw_work);
 	return 0;
 }
@@ -1101,10 +1100,6 @@ static int xone_dongle_probe(struct usb_interface *intf,
 
 	dongle->vendor = id->idVendor;
 	dongle->product = id->idProduct;
-	dongle->fw_state = XONE_DONGLE_FW_STATE_PENDING;
-
-	usb_reset_device(dongle->mt.udev);
-	msleep(500);
 
 	dongle->event_wq = alloc_ordered_workqueue("xone_dongle", 0);
 	if (!dongle->event_wq)
@@ -1112,10 +1107,12 @@ static int xone_dongle_probe(struct usb_interface *intf,
 
 	mutex_init(&dongle->pairing_lock);
 	INIT_DELAYED_WORK(&dongle->pairing_work, xone_dongle_pairing_timeout);
+	INIT_WORK(&dongle->load_fw_work, xone_dongle_fw_load);
 	spin_lock_init(&dongle->clients_lock);
 	init_waitqueue_head(&dongle->disconnect_wait);
 
-	err = xone_dongle_init(dongle, id);
+	usb_reset_device(dongle->mt.udev);
+	err = xone_dongle_init(dongle);
 	if (err) {
 		xone_dongle_destroy(dongle);
 		return err;
@@ -1158,7 +1155,7 @@ static int xone_dongle_suspend(struct usb_interface *intf, pm_message_t message)
 
 	if (dongle->fw_state != XONE_DONGLE_FW_STATE_READY){
 		pr_debug("%s: Skipping radio suspend", __func__);
-		return err;
+		return 0;
 	}
 
 	err = xone_dongle_power_off_clients(dongle);
@@ -1181,9 +1178,8 @@ static int xone_dongle_resume(struct usb_interface *intf)
 
 	if (dongle->fw_state != XONE_DONGLE_FW_STATE_READY){
 		pr_debug("%s: Skipping radio resume", __func__);
-		return err;
+		return 0;
 	}
-	msleep(500);
 
 	while ((urb = usb_get_from_anchor(&dongle->urbs_in_idle))) {
 		usb_anchor_urb(urb, &dongle->urbs_in_busy);
@@ -1219,6 +1215,63 @@ static void xone_dongle_shutdown(struct usb_interface *intf)
 			__func__, err);
 }
 
+static int xone_dongle_pre_reset(struct usb_interface *intf)
+{
+	struct xone_dongle *dongle = usb_get_intfdata(intf);
+	struct urb *urb;
+
+	pr_debug("%s", __func__);
+
+	/* For reset during probe */
+	if (!dongle)
+		return 0;
+
+	cancel_delayed_work_sync(&dongle->pairing_work);
+	usb_kill_anchored_urbs(&dongle->urbs_in_busy);
+	usb_kill_anchored_urbs(&dongle->urbs_out_busy);
+
+	while ((urb = usb_get_from_anchor(&dongle->urbs_out_idle)))
+		usb_free_urb(urb);
+
+	while ((urb = usb_get_from_anchor(&dongle->urbs_in_idle))) {
+		usb_free_coherent(urb->dev, urb->transfer_buffer_length,
+				  urb->transfer_buffer, urb->transfer_dma);
+		usb_free_urb(urb);
+	}
+
+	return 0;
+}
+
+static int xone_dongle_post_reset(struct usb_interface *intf)
+{
+	struct xone_dongle *dongle = usb_get_intfdata(intf);
+
+	pr_debug("%s", __func__);
+
+	/* For reset during probe */
+	if (!dongle)
+		return 0;
+
+	pr_debug("%s: Re-initializing dongle after reset", __func__);
+	return xone_dongle_init(dongle);
+}
+
+static int xone_dongle_reset_resume(struct usb_interface *intf)
+{
+	struct xone_dongle *dongle = usb_get_intfdata(intf);
+	int err;
+
+	pr_debug("%s", __func__);
+
+	err = usb_reset_device(dongle->mt.udev);
+	if (err == -EINPROGRESS) {
+		pr_debug("%s: Reset already in progress", __func__);
+		return 0;
+	}
+
+	return err;
+}
+
 static const struct usb_device_id xone_dongle_id_table[] = {
 	{ USB_DEVICE(0x045e, 0x02e6) }, /* old dongle */
 	{ USB_DEVICE(0x045e, 0x02fe) }, /* new dongle */
@@ -1231,9 +1284,14 @@ static struct usb_driver xone_dongle_driver = {
 	.name = "xone-dongle",
 	.probe = xone_dongle_probe,
 	.disconnect = xone_dongle_disconnect,
+	.id_table = xone_dongle_id_table,
+
+#ifdef CONFIG_PM
 	.suspend = xone_dongle_suspend,
 	.resume = xone_dongle_resume,
-	.id_table = xone_dongle_id_table,
+	.reset_resume = xone_dongle_reset_resume,
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
 	.drvwrap.driver.shutdown = xone_dongle_shutdown,
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
@@ -1241,6 +1299,8 @@ static struct usb_driver xone_dongle_driver = {
 #else
 	.shutdown = xone_dongle_shutdown,
 #endif
+	.pre_reset = xone_dongle_pre_reset,
+	.post_reset = xone_dongle_post_reset,
 	.supports_autosuspend = true,
 	.disable_hub_initiated_lpm = true,
 	.soft_unbind = true,
