@@ -1252,15 +1252,24 @@ static int xone_dongle_post_reset(struct usb_interface *intf)
 	if (!dongle)
 		return 0;
 
+	pr_debug("%s: Re-initializing dongle after reset", __func__);
 	return xone_dongle_init(dongle);
 }
 
 static int xone_dongle_reset_resume(struct usb_interface *intf)
 {
 	struct xone_dongle *dongle = usb_get_intfdata(intf);
+	int err;
 
 	pr_debug("%s", __func__);
-	return usb_reset_device(dongle->mt.udev);
+
+	err = usb_reset_device(dongle->mt.udev);
+	if (err == -EINPROGRESS) {
+		pr_debug("%s: Reset already in progress", __func__);
+		return 0;
+	}
+
+	return err;
 }
 
 static const struct usb_device_id xone_dongle_id_table[] = {
@@ -1275,10 +1284,14 @@ static struct usb_driver xone_dongle_driver = {
 	.name = "xone-dongle",
 	.probe = xone_dongle_probe,
 	.disconnect = xone_dongle_disconnect,
+	.id_table = xone_dongle_id_table,
+
+#ifdef CONFIG_PM
 	.suspend = xone_dongle_suspend,
 	.resume = xone_dongle_resume,
 	.reset_resume = xone_dongle_reset_resume,
-	.id_table = xone_dongle_id_table,
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
 	.drvwrap.driver.shutdown = xone_dongle_shutdown,
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
