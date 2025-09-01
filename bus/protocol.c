@@ -352,15 +352,13 @@ static int gip_send_pkt_simple(struct gip_client *client,
 
 	/* debug message sent */
 	gip_dbg(client, "%s: cmd=0x%02x len=0x%04x seq=0x%02x offset=0x%04x\n",
-		__func__,
-		hdr->command, buf.length, hdr->sequence,
+		__func__, hdr->command, buf.length, hdr->sequence,
 		hdr->chunk_offset);
 
 	/* always fails on adapter removal */
 	err = adap->ops->submit_buffer(adap, &buf);
 	if (err)
-		gip_dbg(client, "%s: submit buffer failed: %d\n",
-			__func__, err);
+		gip_dbg(client, "%s: submit buffer failed: %d\n", __func__, err);
 
 err_unlock:
 	spin_unlock_irqrestore(&adap->send_lock, flags);
@@ -417,7 +415,7 @@ static int gip_acknowledge_pkt(struct gip_client *client,
 
 	if ((ack->options & GIP_OPT_CHUNK) && buf)
 		pkt.remaining = cpu_to_le16(buf->length - len);
-	
+
 	gip_dbg(client, "%s: ACME(host) command=0x%02x, length=0x%04x\n",
 		__func__, pkt.command, len);
 
@@ -1038,8 +1036,8 @@ static int gip_send_remaining_chunks(struct gip_client *client, u32 offset)
 	u32 len = buf->length - offset;
 	int err;
 
-	gip_dbg(client, "%s: sending chunk 0x%04x/0x%04x/0x%04x\n",
-		__func__, len, hdr.chunk_offset, buf->length);
+	gip_dbg(client, "%s: sending chunk 0x%04x/0x%04x/0x%04x\n", __func__,
+		len, hdr.chunk_offset, buf->length);
 
 	int coalesce_count = GIP_PKT_COALESCE_COUNT;
 	while (len && coalesce_count) {
@@ -1075,9 +1073,9 @@ static int gip_handle_pkt_acknowledge(struct gip_client *client,
 	if (!buf)
 		return 0;
 
-	gip_dbg(client,"%s: ACME(dev) cmd=0x%02x/0x%02x, len=0x%04x/0x%04x\n",
-			__func__, pkt->command, buf->header.command,
-			le16_to_cpu(pkt->length), buf->length);
+	gip_dbg(client, "%s: ACME(dev) cmd=0x%02x/0x%02x, len=0x%04x/0x%04x\n",
+		__func__, pkt->command, buf->header.command,
+		le16_to_cpu(pkt->length), buf->length);
 
 	/* acknowledgment for different command */
 	if (pkt->command != buf->header.command)
@@ -1088,8 +1086,7 @@ static int gip_handle_pkt_acknowledge(struct gip_client *client,
 	 * so sanitize value to prevent buffer overflow.
 	 */
 	if (le16_to_cpu(pkt->length) < buf->length)
-		return gip_send_remaining_chunks(
-			client, le16_to_cpu(pkt->length));
+		return gip_send_remaining_chunks(client, le16_to_cpu(pkt->length));
 
 	gip_dbg(client, "%s: all chunks sent\n", __func__);
 

@@ -21,15 +21,15 @@
 /* product ID for the chat headset */
 #define GIP_HS_PID_CHAT 0x0111
 
-#define GIP_HS_MAX_RETRIES  6
+#define GIP_HS_MAX_RETRIES 6
 #define GIP_HS_POWER_ON_DELAY msecs_to_jiffies(250)
 #define GIP_HS_START_DELAY msecs_to_jiffies(500)
 
 static struct gip_vidpid GIP_HS_CHECK_AUTH_IDS[] = {
-	{0x1532, 0x0a16}, // Razer Thresher
-	{0x1532, 0x0a25}, // Razer Kaira Pro
-	{0x1532, 0x0a27}, // Razer Kaira Pro
-	{0x2f12, 0x0023}, // LucidSound LS35X
+	{ 0x1532, 0x0a16 }, // Razer Thresher
+	{ 0x1532, 0x0a25 }, // Razer Kaira Pro
+	{ 0x1532, 0x0a27 }, // Razer Kaira Pro
+	{ 0x2f12, 0x0023 }, // LucidSound LS35X
 };
 
 static const struct snd_pcm_hardware gip_headset_pcm_hw = {
@@ -55,7 +55,7 @@ struct gip_headset {
 	struct delayed_work work_power_on;
 	struct work_struct work_register;
 	bool got_authenticated;
-	int  start_counter;
+	int start_counter;
 	bool got_initial_volume;
 	bool got_audio_packet;
 
@@ -283,32 +283,33 @@ static enum hrtimer_restart gip_headset_send_samples(struct hrtimer *timer)
 	return HRTIMER_RESTART;
 }
 
-/* 
+/*
  * start pcm devices then launch the work that
  * sends START every 500ms until an audio packet is received
  * or audio volume control command is received
  * or time out of 3 seconds (5 start message + 500ms timeout)
  */
-static enum hrtimer_restart gip_headset_start_audio(struct hrtimer *timer) {
-	struct gip_headset *headset = container_of(timer, typeof(*headset),
-						   start_audio_timer);
+static enum hrtimer_restart gip_headset_start_audio(struct hrtimer *timer)
+{
+	struct gip_headset *headset =
+		container_of(timer, typeof(*headset), start_audio_timer);
 	int err;
+
 	/*
 	 * check if the number of retries are elapsed (5) :
 	 * start audio anyway
 	 */
-	bool max_retries_reached = 
-		(headset->start_counter > GIP_HS_MAX_RETRIES ? true : false );
+	bool max_retries_reached =
+		(headset->start_counter > GIP_HS_MAX_RETRIES ? true : false);
+
 	/* check here if audio was started : HRTIMER_NORESTART */
-	if (headset->got_initial_volume
-	    || headset->got_audio_packet
-	    || max_retries_reached) {
+	if (headset->got_initial_volume || headset->got_audio_packet ||
+	    max_retries_reached) {
 		dev_dbg(&headset->client->dev,
 			"%s: start audio try %d/%d, audio = %d, vol = %d.\n",
-			__func__, headset->start_counter,
-			GIP_HS_MAX_RETRIES,
-			headset->got_audio_packet,
-			headset->got_initial_volume);
+			__func__, headset->start_counter, GIP_HS_MAX_RETRIES,
+			headset->got_audio_packet, headset->got_initial_volume);
+
 		/* start work handling pcm config and audio timer */
 		schedule_work(&headset->work_register);
 		return HRTIMER_NORESTART;
@@ -321,8 +322,7 @@ static enum hrtimer_restart gip_headset_start_audio(struct hrtimer *timer) {
 	err = gip_set_power_mode(headset->client, GIP_PWR_ON);
 	if (err)
 		dev_err(&headset->client->dev,
-			"%s: set power mode failed: %d\n",
-			__func__, err);
+			"%s: set power mode failed: %d\n", __func__, err);
 	hrtimer_forward_now(timer, ms_to_ktime(GIP_HS_START_DELAY));
 
 	return HRTIMER_RESTART;
@@ -388,9 +388,8 @@ static void gip_headset_config(struct work_struct *work)
 
 static void gip_headset_power_on(struct work_struct *work)
 {
-	struct gip_headset *headset = container_of(to_delayed_work(work),
-						   typeof(*headset),
-						   work_power_on);
+	struct gip_headset *headset = container_of(
+		to_delayed_work(work), typeof(*headset), work_power_on);
 	struct gip_client *client = headset->client;
 	const struct device *dev = &client->adapter->dev;
 	int err;
