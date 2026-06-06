@@ -78,6 +78,10 @@ enum gip_gamepad_motor {
 	GIP_GP_MOTOR_LT = BIT(3),
 };
 
+enum gip_init_state {
+	GIP_GP_AUTHENTICATING = 0x10,
+	GIP_GP_READY = 0xFF,
+};
 /*
  * Remember, xpad keeps the 4 bytes.
  * Paddles are at [18] in xpad, so, [14] here.
@@ -141,11 +145,15 @@ struct gip_gamepad {
 	struct gip_led led;
 	struct gip_input input;
 
+  //u8 state;
+
 	bool supports_share;
 	bool supports_dli;
 	PaddleCapability paddle_support;
 
 	struct gip_gamepad_rumble rumble;
+
+  //  struct work_struct state_work;
 };
 
 static void gip_gamepad_send_rumble(struct timer_list *timer)
@@ -329,6 +337,14 @@ static int gip_gamepad_op_battery(struct gip_client *client,
 
 	gip_report_battery(&gamepad->battery, type, level);
 
+  // handle pdp gamepad that need delayed authentication
+  /*
+  if (gamepad->state == GIP_GP_AUTHENTICATING)
+  {
+    gamepad->state = GIP_GP_READY;
+    schedule_work(&gamepad->state_work);
+  }*/
+
 	return 0;
 }
 
@@ -352,8 +368,25 @@ static int gip_gamepad_op_guide_button(struct gip_client *client, bool down)
 
 static int gip_gamepad_op_authenticated(struct gip_client *client)
 {
+  struct gip_gamepad *gamepad = dev_get_drvdata(&client->dev);
+	int err = gip_gamepad_init_input(gamepad);
+	if (err)
+		return err;
+
 	return 0;
 }
+
+/*
+static void gip_gamepad_start_handshake(struct work_struct *work)
+{
+	struct gip_gamepad *gamepad = container_of(work, struct gip_gamepad, state_work);
+	int err = gip_auth_start_handshake(&gamepad->auth, gamepad->client);
+	if (err) {
+		dev_dbg(&gamepad->client->dev, "%s: gamepad handshake failed err=%d.\n", __func__, err);
+		return;
+	}
+}
+*/
 
 static int gip_gamepad_op_firmware(struct gip_client *client, void *data,
 				   u32 len)
@@ -485,6 +518,10 @@ static int gip_gamepad_probe(struct gip_client *client)
 	if (!gamepad)
 		return -ENOMEM;
 
+
+  //INIT_WORK(&gamepad->state_work, gip_gamepad_start_handshake);
+  //gamepad->state = GIP_GP_READY;//AUTHENTICATING;
+
 	gamepad->client = client;
 
 	err = gip_set_power_mode(client, GIP_PWR_ON);
@@ -512,18 +549,18 @@ static int gip_gamepad_probe(struct gip_client *client)
 	if (err)
 		return err;
 
-	err = gip_auth_start_handshake(&gamepad->auth, client);
-	if (err)
-		return err;
-
+  dev_dbg(&gamepad->client->dev, "%s: before gip_init_input.\n", __func__);
 	err = gip_init_input(&gamepad->input, client, GIP_GP_NAME);
 	if (err)
 		return err;
 
-	err = gip_gamepad_init_input(gamepad);
-	if (err)
+  dev_dbg(&gamepad->client->dev, "%s: before handshake.\n", __func__);
+	err = gip_auth_start_handshake(&gamepad->auth, gamepad->client);
+	if (err) {
+		dev_dbg(&gamepad->client->dev, "%s: gamepad handshake failed err=%d.\n", __func__, err);
 		return err;
-
+	}
+  
 	dev_set_drvdata(&client->dev, gamepad);
 
 	return 0;
@@ -532,6 +569,7 @@ static int gip_gamepad_probe(struct gip_client *client)
 static void gip_gamepad_remove(struct gip_client *client)
 {
 	struct gip_gamepad *gamepad = dev_get_drvdata(&client->dev);
+  //cancel_work_sync(&gamepad->state_work);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6,15,0)
 	del_timer_sync(&gamepad->rumble.timer);
