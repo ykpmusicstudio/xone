@@ -1706,6 +1706,7 @@ static int gip_process_pkt(struct gip_client *client,
 		hdr->chunk_offset = 0;
 	}
 
+	/* some gamepads send empty packets with chunk flag : dispatch them */
 	if (hdr->options & GIP_OPT_CHUNK)
 		return gip_process_pkt_chunked(client, hdr, data);
 
